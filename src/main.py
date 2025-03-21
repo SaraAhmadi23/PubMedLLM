@@ -11,13 +11,13 @@ import json
 from typing import Dict, List, Any, Optional
 
 # Local imports
-from .utils.helpers import setup_logging, check_hardware_compatibility
-from .config.model_config import MODEL_NAME, MAX_SEQ_LENGTH
-from .config.training_config import get_training_args
-from .data.data_processor import get_medical_dataset, load_json_data
-from .models.llama_model import initialize_model_and_tokenizer, save_model, load_saved_lora
-from .training.trainer import setup_environment, create_trainer, train_model
-from .inference.inference import generate_response, batch_generate_responses, parse_structured_response
+from src.utils.helpers import setup_logging, check_hardware_compatibility
+from src.config.model_config import MODEL_NAME, MAX_SEQ_LENGTH
+from src.config.training_config import get_training_args
+from src.data.data_processor import get_medical_dataset, load_json_data
+from src.models.llama_model import initialize_model_and_tokenizer, save_model, load_saved_lora
+from src.training.trainer import setup_environment, create_trainer, train_model
+from src.inference.inference import generate_response, batch_generate_responses, parse_structured_response
 
 # Set up argument parser
 def parse_args():
@@ -301,7 +301,7 @@ def run_evaluation(args, logger):
         )
         
         # Calculate metrics
-        from utils.evaluation import (
+        from src.utils.evaluation import (
             extract_structured_parts,
             calculate_format_adherence,
             calculate_response_metrics,
