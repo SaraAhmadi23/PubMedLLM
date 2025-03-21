@@ -1,124 +1,161 @@
 # PubMedLLM
 
-A modular project for fine-tuning Llama 3.1 8B with medical data for PubMed tasks.
+Fine-tuning Llama 3.1 for medical tasks using GRPO (Guided Reward Policy Optimization).
 
-## Project Description
+## Features
 
-This project provides a modular implementation for fine-tuning and inference with the Llama 3.1 8B model on medical datasets. It is designed to be deployed on high-performance computing clusters like Compute Canada, with a focus on modular architecture, scalability, and optimization.
-
-## Project Structure
-
-```
-src/
-├── config/          # Configuration settings
-│   ├── model_config.py      # Model parameters
-│   └── training_config.py   # Training parameters
-├── data/            # Data loading and processing
-│   └── data_processor.py    # Medical data processing 
-├── models/          # Model definitions
-│   └── llama_model.py       # Llama model initialization
-├── training/        # Training logic
-│   ├── reward_functions.py  # GRPO reward functions
-│   └── trainer.py           # Training loop
-├── utils/           # Utility functions
-│   ├── helpers.py           # Common utilities
-│   └── evaluation.py        # Evaluation metrics
-├── inference/       # Inference capabilities
-│   └── inference.py         # Generation utilities
-└── main.py          # Entry point
-```
+- Fine-tune Llama 3.1 models on medical datasets
+- GRPO training with format and critic rewards
+- Structured medical reasoning output
+- Evaluation metrics for format adherence and answer quality
+- Support for both training and inference modes
 
 ## Installation
 
+1. Clone the repository:
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/PubMedLLM.git
 cd PubMedLLM
+```
 
-# Install dependencies
+2. Create and activate a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+.\venv\Scripts\activate  # Windows
+```
+
+3. Install dependencies:
+```bash
 pip install -r requirements.txt
 ```
 
 ## Usage
 
-The project provides a command-line interface for training, inference, and evaluation.
-
 ### Training
 
-To fine-tune the model on medical data:
+To train the model:
 
 ```bash
-python -m src.main --mode train \
-  --model_path meta-llama/Meta-Llama-3.1-8B \
-  --data_path path/to/training_data.json \
-  --output_dir ./outputs \
-  --batch_size 8 \
-  --epochs 3 \
-  --lr 2e-5
+python -m src.main \
+    --mode train \
+    --model_path meta-llama/Meta-Llama-3.1-8B \
+    --data_path data/datasets/merged_medical_data.json \
+    --output_dir ./outputs
 ```
 
-With OpenAI critic rewards:
-
-```bash
-python -m src.main --mode train \
-  --model_path meta-llama/Meta-Llama-3.1-8B \
-  --data_path path/to/training_data.json \
-  --output_dir ./outputs \
-  --openai_api_key your_api_key
-```
+Optional training arguments:
+- `--epochs`: Number of training epochs (default: 3)
+- `--batch_size`: Training batch size (default: 8)
+- `--lr`: Learning rate (default: 2e-5)
+- `--wandb`: Enable Weights & Biases logging
 
 ### Inference
 
-Single prompt inference:
+To run inference:
 
 ```bash
-python -m src.main --mode inference \
-  --model_path meta-llama/Meta-Llama-3.1-8B \
-  --lora_path ./outputs/adapter \
-  --prompt "Analyze this patient case: 45-year-old male with chest pain..." \
-  --temperature 0.7
+python -m src.main \
+    --mode inference \
+    --model_path meta-llama/Meta-Llama-3.1-8B \
+    --prompt "Your medical question here" \
+    --output_dir ./results
 ```
 
-Batch inference:
-
+For batch inference from a file:
 ```bash
-python -m src.main --mode inference \
-  --model_path meta-llama/Meta-Llama-3.1-8B \
-  --lora_path ./outputs/adapter \
-  --prompt_file path/to/prompts.txt \
-  --output_dir ./results
+python -m src.main \
+    --mode inference \
+    --model_path meta-llama/Meta-Llama-3.1-8B \
+    --prompt_file prompts.txt \
+    --output_dir ./results
 ```
 
 ### Evaluation
 
-To evaluate model performance on a test dataset:
+To evaluate the model:
 
 ```bash
-python -m src.main --mode evaluate \
-  --model_path meta-llama/Meta-Llama-3.1-8B \
-  --lora_path ./outputs/adapter \
-  --data_path path/to/test_data.json \
-  --output_dir ./evaluation
+python -m src.main \
+    --mode evaluate \
+    --model_path meta-llama/Meta-Llama-3.1-8B \
+    --data_path data/datasets/test_data.json \
+    --output_dir ./evaluation
 ```
 
-## Features
+## Project Structure
 
-- Modular architecture with clean separation of components
-- GRPO (Gradient Reinforcement Policy Optimization) training with custom rewards
-- Efficient LoRA fine-tuning optimized for medical tasks
-- Optimized for high-performance computing environments
-- Structured medical response format with reasoning and answers
-- Comprehensive evaluation metrics for medical reasoning quality
-- Command-line interface for training, inference, and evaluation
+```
+PubMedLLM/
+├── src/
+│   ├── config/
+│   │   ├── model_config.py
+│   │   └── training_config.py
+│   ├── data/
+│   │   └── data_processor.py
+│   ├── models/
+│   │   └── llama_model.py
+│   ├── training/
+│   │   └── trainer.py
+│   ├── inference/
+│   │   └── inference.py
+│   ├── utils/
+│   │   ├── helpers.py
+│   │   └── evaluation.py
+│   └── main.py
+├── data/
+│   └── datasets/
+│       └── merged_medical_data.json
+├── outputs/
+├── requirements.txt
+└── README.md
+```
 
-## Requirements
+## Model Output Format
 
-See `requirements.txt` for detailed dependencies. Key requirements:
+The model generates structured responses in the following format:
 
-- unsloth>=2023.12.1.0
-- transformers>=4.35.0
-- peft>=0.8.2
-- trl>=0.7.10
-- datasets>=2.14.0
-- vllm>=0.3.0
-- torch>=2.0.0 
+```xml
+<reasoning>
+Clinical Reasoning Steps:
+- Step 1: ...
+- Step 2: ...
+
+Confidence Levels:
+- Diagnosis: 8/10
+- Treatment: 7/10
+
+Specificity:
+- Gender-specific: Yes
+- Age-specific: Yes
+- Comorbidity-specific: No
+
+Alternative Treatment Options:
+- Option A: Rejected because...
+- Option B: Rejected because...
+
+Expected Outcomes:
+- Short-term: ...
+- Long-term: ...
+
+Assumptions:
+- Assumption 1
+- Assumption 2
+
+Error Handling:
+- Case 1: Action 1
+- Case 2: Action 2
+
+References:
+- Source 1: Details
+- Source 2: Details
+</reasoning>
+<answer>
+Final clinical decision or recommendation
+</answer>
+```
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the LICENSE file for details. 

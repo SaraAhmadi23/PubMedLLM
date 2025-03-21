@@ -1,180 +1,431 @@
-"""
-Evaluation utilities and metrics for assessing model performance.
-"""
-
-import re
-import json
-import numpy as np
-from typing import List, Dict, Any, Optional, Union, Tuple
-
-def extract_structured_parts(response: str) -> Dict[str, str]:
-    """
-    Extract structured parts from a model response.
-    
-    Args:
-        response: Model-generated text response
-        
-    Returns:
-        Dictionary with extracted components
-    """
-    result = {}
-    
-    # Extract content between XML tags
-    for tag in ["reasoning", "answer", "confidence", "specificity", "alternatives", 
-                "outcomes", "assumptions", "errors", "references"]:
-        pattern = f"<{tag}>(.*?)</{tag}>"
-        match = re.search(pattern, response, re.DOTALL)
-        if match:
-            result[tag] = match.group(1).strip()
-        else:
-            result[tag] = ""
-    
-    return result
-
-def calculate_format_adherence(response: str, required_tags: List[str]) -> Dict[str, Union[float, Dict[str, bool]]]:
-    """
-    Calculate how well the response adheres to the required format.
-    
-    Args:
-        response: Model-generated text response
-        required_tags: List of XML tags that should be in the response
-        
-    Returns:
-        Dictionary with format adherence metrics
-    """
-    tag_presence = {}
-    total_found = 0
-    
-    for tag in required_tags:
-        pattern = f"<{tag}>.*?</{tag}>"
-        found = bool(re.search(pattern, response, re.DOTALL))
-        tag_presence[tag] = found
-        if found:
-            total_found += 1
-    
-    format_score = total_found / len(required_tags) if required_tags else 0.0
-    
-    return {
-        "format_score": format_score,
-        "tag_presence": tag_presence
-    }
-
-def count_tokens(text: str, tokenizer) -> int:
-    """
-    Count the number of tokens in a text string.
-    
-    Args:
-        text: Input text
-        tokenizer: Tokenizer to use for counting
-        
-    Returns:
-        Number of tokens
-    """
-    return len(tokenizer.encode(text))
-
-def calculate_response_metrics(responses: List[str], tokenizer) -> Dict[str, Union[float, int]]:
-    """
-    Calculate various metrics on a list of model responses.
-    
-    Args:
-        responses: List of model-generated responses
-        tokenizer: Tokenizer for token counting
-        
-    Returns:
-        Dictionary with response metrics
-    """
-    metrics = {}
-    
-    # Token statistics
-    token_counts = [count_tokens(r, tokenizer) for r in responses]
-    metrics["avg_tokens"] = np.mean(token_counts)
-    metrics["min_tokens"] = min(token_counts)
-    metrics["max_tokens"] = max(token_counts)
-    metrics["std_tokens"] = np.std(token_counts)
-    
-    # Format adherence statistics
-    required_tags = ["reasoning", "answer"]
-    format_scores = [
-        calculate_format_adherence(r, required_tags)["format_score"] 
-        for r in responses
-    ]
-    metrics["avg_format_score"] = np.mean(format_scores)
-    metrics["perfect_format_count"] = sum(1 for s in format_scores if s == 1.0)
-    metrics["perfect_format_percentage"] = (metrics["perfect_format_count"] / len(responses)) * 100 if responses else 0
-    
-    return metrics
-
-def compare_answers(generated: str, reference: str) -> Dict[str, float]:
-    """
-    Compare generated answer with reference answer.
-    This is a placeholder for more sophisticated metrics.
-    
-    Args:
-        generated: Generated answer text
-        reference: Reference answer text
-        
-    Returns:
-        Dictionary with comparison metrics
-    """
-    # Extract just the answer part if XML tags are present
-    generated_match = re.search(r"<answer>(.*?)</answer>", generated, re.DOTALL)
-    if generated_match:
-        generated = generated_match.group(1).strip()
-    
-    reference_match = re.search(r"<answer>(.*?)</answer>", reference, re.DOTALL)
-    if reference_match:
-        reference = reference_match.group(1).strip()
-    
-    # Simple exact match
-    exact_match = generated.lower() == reference.lower()
-    
-    # Word overlap (very simple metric)
-    generated_words = set(generated.lower().split())
-    reference_words = set(reference.lower().split())
-    
-    if not reference_words:
-        word_overlap = 0.0
-    else:
-        word_overlap = len(generated_words.intersection(reference_words)) / len(reference_words)
-    
-    return {
-        "exact_match": float(exact_match),
-        "word_overlap": word_overlap
-    }
-
-def evaluate_reasoning_quality(reasoning: str) -> Dict[str, float]:
-    """
-    Evaluate the quality of clinical reasoning.
-    This is a placeholder for more sophisticated evaluation.
-    
-    Args:
-        reasoning: The reasoning text to evaluate
-        
-    Returns:
-        Dictionary with reasoning quality metrics
-    """
-    # Extract just the reasoning part if XML tags are present
-    reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", reasoning, re.DOTALL)
-    if reasoning_match:
-        reasoning = reasoning_match.group(1).strip()
-    
-    # Count sentences as a proxy for reasoning depth
-    sentences = re.split(r'[.!?]+', reasoning)
-    sentences = [s.strip() for s in sentences if s.strip()]
-    
-    # Count medical terms (very simplistic approach)
-    medical_terms_pattern = r'\b(diagnosis|treatment|symptom|patient|disease|clinical|therapy|medication|dose|drug|prognosis|assessment|evaluation)\b'
-    medical_terms_count = len(re.findall(medical_terms_pattern, reasoning.lower()))
-    
-    # Simple heuristic for structure
-    has_structure = any(indicator in reasoning.lower() for indicator in 
-                         ["first", "second", "third", "finally", "conclusion", "assessment", 
-                          "plan", "recommendation", "differential diagnosis"])
-    
-    return {
-        "sentence_count": len(sentences),
-        "word_count": len(reasoning.split()),
-        "medical_terms_count": medical_terms_count,
-        "has_structure": float(has_structure),
-        "avg_sentence_length": len(reasoning.split()) / len(sentences) if sentences else 0
-    } 
+"""
+
+Evaluation utilities and metrics for assessing model performance.
+
+"""
+
+
+
+import re
+
+import json
+
+import numpy as np
+
+from typing import List, Dict, Any, Optional, Union, Tuple
+
+
+
+def extract_structured_parts(text: str) -> Dict[str, str]:
+
+    """
+
+    Extract structured parts from model output
+
+    
+
+    Args:
+
+        text: Model output text
+
+        
+
+    Returns:
+
+        Dict with reasoning and answer
+
+    """
+
+    parts = {}
+
+    
+
+    # Extract reasoning
+
+    reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", text, re.DOTALL)
+
+    parts["reasoning"] = reasoning_match.group(1).strip() if reasoning_match else ""
+
+    
+
+    # Extract answer
+
+    answer_match = re.search(r"<answer>(.*?)</answer>", text, re.DOTALL)
+
+    parts["answer"] = answer_match.group(1).strip() if answer_match else ""
+
+    
+
+    return parts
+
+
+
+def calculate_format_adherence(text: str, required_sections: List[str]) -> Dict[str, float]:
+
+    """
+
+    Calculate format adherence metrics
+
+    
+
+    Args:
+
+        text: Model output text
+
+        required_sections: List of required sections
+
+        
+
+    Returns:
+
+        Dict of format metrics
+
+    """
+
+    metrics = {
+
+        "format_score": 0.0,
+
+        "missing_sections": [],
+
+        "empty_sections": []
+
+    }
+
+    
+
+    # Check each required section
+
+    for section in required_sections:
+
+        pattern = f"<{section}>(.*?)</{section}>"
+
+        match = re.search(pattern, text, re.DOTALL)
+
+        
+
+        if not match:
+
+            metrics["missing_sections"].append(section)
+
+            continue
+
+            
+
+        content = match.group(1).strip()
+
+        if not content:
+
+            metrics["empty_sections"].append(section)
+
+            
+
+    # Calculate score
+
+    total_sections = len(required_sections)
+
+    present_sections = total_sections - len(metrics["missing_sections"])
+
+    non_empty_sections = present_sections - len(metrics["empty_sections"])
+
+    
+
+    metrics["format_score"] = non_empty_sections / total_sections
+
+    
+
+    return metrics
+
+
+
+def count_tokens(text: str, tokenizer) -> int:
+
+    """
+
+    Count the number of tokens in a text string.
+
+    
+
+    Args:
+
+        text: Input text
+
+        tokenizer: Tokenizer to use for counting
+
+        
+
+    Returns:
+
+        Number of tokens
+
+    """
+
+    return len(tokenizer.encode(text))
+
+
+
+def calculate_response_metrics(responses: List[str], tokenizer) -> Dict[str, Any]:
+
+    """
+
+    Calculate overall response metrics
+
+    
+
+    Args:
+
+        responses: List of model responses
+
+        tokenizer: Tokenizer for length calculation
+
+        
+
+    Returns:
+
+        Dict of response metrics
+
+    """
+
+    metrics = {
+
+        "total_responses": len(responses),
+
+        "avg_length": 0,
+
+        "perfect_format_count": 0,
+
+        "perfect_format_percentage": 0,
+
+        "avg_format_score": 0,
+
+    }
+
+    
+
+    format_scores = []
+
+    lengths = []
+
+    
+
+    for response in responses:
+
+        # Calculate length
+
+        length = len(tokenizer.encode(response))
+
+        lengths.append(length)
+
+        
+
+        # Check format
+
+        format_metrics = calculate_format_adherence(
+
+            response,
+
+            required_sections=["reasoning", "answer"]
+
+        )
+
+        format_scores.append(format_metrics["format_score"])
+
+        
+
+        if format_metrics["format_score"] == 1.0:
+
+            metrics["perfect_format_count"] += 1
+
+            
+
+    # Calculate averages
+
+    metrics["avg_length"] = sum(lengths) / len(lengths)
+
+    metrics["avg_format_score"] = sum(format_scores) / len(format_scores)
+
+    metrics["perfect_format_percentage"] = (
+
+        metrics["perfect_format_count"] / metrics["total_responses"] * 100
+
+    )
+
+    
+
+    return metrics
+
+
+
+def compare_answers(generated: str, reference: str) -> Dict[str, float]:
+
+    """
+
+    Compare generated answer with reference
+
+    
+
+    Args:
+
+        generated: Generated answer
+
+        reference: Reference answer
+
+        
+
+    Returns:
+
+        Dict of comparison metrics
+
+    """
+
+    from difflib import SequenceMatcher
+
+    
+
+    metrics = {
+
+        "exact_match": generated.strip() == reference.strip(),
+
+        "word_overlap": 0.0,
+
+    }
+
+    
+
+    # Calculate word overlap
+
+    gen_words = set(generated.lower().split())
+
+    ref_words = set(reference.lower().split())
+
+    
+
+    if ref_words:
+
+        overlap = len(gen_words.intersection(ref_words))
+
+        metrics["word_overlap"] = overlap / len(ref_words)
+
+        
+
+    # Calculate sequence similarity
+
+    metrics["sequence_similarity"] = SequenceMatcher(
+
+        None,
+
+        generated.lower(),
+
+        reference.lower()
+
+    ).ratio()
+
+    
+
+    return metrics
+
+
+
+def evaluate_reasoning_quality(reasoning: str) -> Dict[str, Any]:
+
+    """
+
+    Evaluate quality of reasoning
+
+    
+
+    Args:
+
+        reasoning: Reasoning text
+
+        
+
+    Returns:
+
+        Dict of quality metrics
+
+    """
+
+    metrics = {
+
+        "length": len(reasoning.split()),
+
+        "has_structure": bool(re.search(r"^\s*[-•*]\s+", reasoning, re.MULTILINE)),
+
+        "num_points": len(re.findall(r"^\s*[-•*]\s+", reasoning, re.MULTILINE)),
+
+    }
+
+    
+
+    # Check for clinical terms
+
+    clinical_terms = [
+
+        r"diagnosis",
+
+        r"treatment",
+
+        r"symptoms?",
+
+        r"patient",
+
+        r"clinical",
+
+        r"medical",
+
+        r"health",
+
+        r"care",
+
+        r"condition",
+
+        r"assessment"
+
+    ]
+
+    
+
+    metrics["clinical_terms_count"] = sum(
+
+        1 for term in clinical_terms
+
+        if re.search(rf"\b{term}\b", reasoning.lower())
+
+    )
+
+    
+
+    # Check for evidence references
+
+    evidence_patterns = [
+
+        r"study shows",
+
+        r"research indicates",
+
+        r"evidence suggests",
+
+        r"according to",
+
+        r"based on",
+
+        r"literature",
+
+        r"guidelines?"
+
+    ]
+
+    
+
+    metrics["evidence_references"] = sum(
+
+        1 for pattern in evidence_patterns
+
+        if re.search(pattern, reasoning.lower())
+
+    )
+
+    
+
+    return metrics 
